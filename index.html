@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Gridworks — Factory &amp; Belts</title>
+  <title>Gridworks — Factory expansion</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
@@ -13,24 +13,35 @@
   <aside id="ui">
     <header>
       <h1>Gridworks</h1>
-      <p class="sub">Belts · machines · throughput</p>
+      <p class="sub">Belts · chain · milestones · launch</p>
     </header>
 
-    <section class="res">
+    <section class="res res-tight">
       <div><span>Credits</span><strong id="money">0</strong></div>
-      <div><span>Ore mined</span><strong id="stat-ore">0</strong></div>
-      <div><span>Ingots</span><strong id="stat-ingot">0</strong></div>
-      <div><span>Belt load</span><strong id="stat-belt">0</strong></div>
+      <div><span>Score</span><strong id="stat-score">0</strong></div>
+      <div><span>Belt items</span><strong id="stat-belt">0</strong></div>
+    </section>
+
+    <section class="objectives" aria-label="Milestones">
+      <h2>Milestone</h2>
+      <div id="milestone-card" class="milestone-card">
+        <p class="m-title" id="ms-title">—</p>
+        <p class="m-desc" id="ms-desc">—</p>
+        <div class="m-bar-wrap"><div id="ms-bar" class="m-bar"></div></div>
+        <p class="m-prog mono" id="ms-prog">0 / 0</p>
+      </div>
+      <p class="m-hint">Deliver matching items into a <em>Quartermaster</em> (input from peach side).</p>
     </section>
 
     <section class="tools" aria-label="Build tools">
-      <h2>Build</h2>
+      <h2>Build palette</h2>
       <div class="tool-grid" id="tool-buttons"></div>
-      <p class="hint" id="tool-hint">Select a tool. Click the factory floor to place.</p>
+      <p class="hint" id="tool-hint">Select a tool. Click the floor to place.</p>
     </section>
 
     <section class="row">
       <label class="chk"><input type="checkbox" id="grid-lines" checked /> Grid lines</label>
+      <label class="chk"><input type="checkbox" id="sandbox" /> Unlock all (sandbox)</label>
     </section>
 
     <section class="actions">
@@ -41,8 +52,8 @@
     <section class="help">
       <h2>Shortcuts</h2>
       <ul>
-        <li><kbd>1</kbd>–<kbd>4</kbd> build · <kbd>5</kbd> or <kbd>X</kbd> demolish · <kbd>R</kbd> rotate</li>
-        <li>Miners only on <em>ore</em> patches; smelters need ore in, ingots out</li>
+        <li><kbd>1</kbd>–<kbd>9</kbd> tools · <kbd>0</kbd> demolish · <kbd>R</kbd> rotate</li>
+        <li><em>Fe</em> / <em>Cu</em> / <em>Co</em> patches · smelt ores · blast steel · assemble chips</li>
       </ul>
     </section>
   </aside>
@@ -51,6 +62,14 @@
     <canvas id="game" width="960" height="640" aria-label="Factory floor"></canvas>
     <div id="toast" role="status"></div>
   </main>
+
+  <div id="victory" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="vic-title">
+    <div class="modal-box">
+      <h2 id="vic-title">Launch complete</h2>
+      <p>You fed the rocket supply chain. Gridworks thanks you, engineer.</p>
+      <button type="button" id="vic-new">New map</button>
+    </div>
+  </div>
 
   <script type="module" src="game.js"></script>
 </body>

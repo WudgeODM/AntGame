@@ -1,9 +1,6 @@
 # Gridworks
 
-Factory floor in the browser: **conveyors**, **miners** (on ore), **smelters** (2 ore → 1 ingot), **storage chests**, credits, and demolish refunds.
+Factory sim in the browser: **iron / copper / coal** patches, **belts**, **smelter**, **press** (plates), **blast furnace** (steel), **assembler** (chips), **storage**, **Quartermaster** deliveries, and a **7-step milestone** campaign (final launch delivery = win).
 
-```bash
-python3 -m http.server 8080
-```
-
-Open `http://localhost:8080` (ES modules need a local server).
+- **Sandbox** checkbox unlocks every building immediately.
+- Run locally: `python3 -m http.server 8080` then open the app URL (ES modules).

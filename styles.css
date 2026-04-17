@@ -8,7 +8,7 @@
   --good: #3fb950;
   --warn: #d29922;
   --ore: #c9a227;
-  --ingot: #a78bfa;
+  --milestone: #a371f7;
 }
 
 * {
@@ -30,9 +30,9 @@ body {
 }
 
 #ui {
-  width: 280px;
-  min-width: 260px;
-  padding: 16px 18px;
+  width: 300px;
+  min-width: 280px;
+  padding: 14px 16px;
   border-right: 1px solid var(--line);
   background: var(--panel);
   overflow-y: auto;
@@ -40,21 +40,25 @@ body {
 
 header h1 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.28rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .sub {
-  margin: 4px 0 16px;
-  font-size: 0.78rem;
+  margin: 4px 0 12px;
+  font-size: 0.76rem;
   color: var(--muted);
 }
 
 .res {
   display: grid;
   gap: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
+}
+
+.res-tight > div {
+  padding: 7px 9px;
 }
 
 .res > div {
@@ -65,7 +69,7 @@ header h1 {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--line);
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .res span {
@@ -74,8 +78,81 @@ header h1 {
 
 .res strong {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   color: var(--accent);
+}
+
+.objectives {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.objectives h2 {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.milestone-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(163, 113, 247, 0.35);
+  background: rgba(88, 28, 135, 0.12);
+}
+
+.m-title {
+  margin: 0 0 4px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #d8b4fe;
+}
+
+.m-desc {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.m-bar-wrap {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.m-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #c084fc);
+  transition: width 0.2s ease;
+}
+
+.m-prog {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #e9d5ff;
+}
+
+.m-hint {
+  margin: 8px 0 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.m-hint em {
+  color: var(--milestone);
+  font-style: normal;
+}
+
+.mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 .tools h2,
@@ -90,7 +167,10 @@ header h1 {
 .tool-grid {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .tool-btn {
@@ -98,20 +178,20 @@ header h1 {
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   text-align: left;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, opacity 0.15s;
 }
 
-.tool-btn:hover {
+.tool-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
 }
 
@@ -121,26 +201,42 @@ header h1 {
   color: #79c0ff;
 }
 
+.tool-btn:disabled,
+.tool-btn.locked {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .tool-btn .cost {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 500;
   color: var(--good);
 }
 
+.tool-btn .hotkey {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.65rem;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
 .hint {
-  margin: 10px 0 0;
-  font-size: 0.76rem;
+  margin: 8px 0 0;
+  font-size: 0.74rem;
   color: var(--muted);
   line-height: 1.4;
 }
 
 .row {
-  margin: 14px 0;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .chk {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--muted);
   display: flex;
   align-items: center;
@@ -152,7 +248,7 @@ header h1 {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .actions button {
@@ -165,7 +261,7 @@ header h1 {
   color: var(--text);
   font-family: inherit;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   cursor: pointer;
 }
 
@@ -175,15 +271,15 @@ header h1 {
 
 .help {
   border-top: 1px solid var(--line);
-  padding-top: 12px;
+  padding-top: 10px;
 }
 
 .help ul {
   margin: 0;
-  padding-left: 18px;
-  font-size: 0.76rem;
+  padding-left: 16px;
+  font-size: 0.72rem;
   color: var(--muted);
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 .help em {
@@ -193,7 +289,7 @@ header h1 {
 
 kbd {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   padding: 2px 5px;
   border-radius: 4px;
   border: 1px solid var(--line);
@@ -207,7 +303,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 10px;
 }
 
 #game {
@@ -222,14 +318,16 @@ kbd {
 
 #toast {
   position: absolute;
-  bottom: 24px;
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 8px 16px;
+  max-width: min(90vw, 420px);
+  text-align: center;
+  padding: 8px 14px;
   border-radius: 999px;
   background: rgba(22, 27, 34, 0.95);
   border: 1px solid var(--line);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text);
   opacity: 0;
   pointer-events: none;
@@ -241,7 +339,54 @@ kbd {
   opacity: 1;
 }
 
-@media (max-width: 720px) {
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-box {
+  max-width: 380px;
+  padding: 22px 26px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  text-align: center;
+}
+
+.modal-box h2 {
+  margin: 0 0 10px;
+  color: #c084fc;
+}
+
+.modal-box p {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.modal-box button {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 1px solid rgba(163, 113, 247, 0.45);
+  background: rgba(88, 28, 135, 0.25);
+  color: #e9d5ff;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
   body {
     flex-direction: column;
   }
@@ -250,6 +395,10 @@ kbd {
     width: 100%;
     border-right: none;
     border-bottom: 1px solid var(--line);
-    max-height: 38vh;
+    max-height: 44vh;
+  }
+
+  .tool-grid {
+    max-height: 28vh;
   }
 }
