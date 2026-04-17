@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Gridworks — Factory &amp; Belts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <aside id="ui">
+    <header>
+      <h1>Gridworks</h1>
+      <p class="sub">Belts · machines · throughput</p>
+    </header>
+
+    <section class="res">
+      <div><span>Credits</span><strong id="money">0</strong></div>
+      <div><span>Ore mined</span><strong id="stat-ore">0</strong></div>
+      <div><span>Ingots</span><strong id="stat-ingot">0</strong></div>
+      <div><span>Belt load</span><strong id="stat-belt">0</strong></div>
+    </section>
+
+    <section class="tools" aria-label="Build tools">
+      <h2>Build</h2>
+      <div class="tool-grid" id="tool-buttons"></div>
+      <p class="hint" id="tool-hint">Select a tool. Click the factory floor to place.</p>
+    </section>
+
+    <section class="row">
+      <label class="chk"><input type="checkbox" id="grid-lines" checked /> Grid lines</label>
+    </section>
+
+    <section class="actions">
+      <button type="button" id="btn-pause">Pause</button>
+      <button type="button" id="btn-clear">Clear floor</button>
+    </section>
+
+    <section class="help">
+      <h2>Shortcuts</h2>
+      <ul>
+        <li><kbd>1</kbd>–<kbd>4</kbd> build · <kbd>5</kbd> or <kbd>X</kbd> demolish · <kbd>R</kbd> rotate</li>
+        <li>Miners only on <em>ore</em> patches; smelters need ore in, ingots out</li>
+      </ul>
+    </section>
+  </aside>
+
+  <main id="stage">
+    <canvas id="game" width="960" height="640" aria-label="Factory floor"></canvas>
+    <div id="toast" role="status"></div>
+  </main>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
