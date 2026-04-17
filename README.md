@@ -1,6 +1,13 @@
 # Gridworks
 
-Factory sim in the browser: **iron / copper / coal** patches, **belts**, **smelter**, **press** (plates), **blast furnace** (steel), **assembler** (chips), **storage**, **Quartermaster** deliveries, and a **7-step milestone** campaign (final launch delivery = win).
+Browser factory sim (belts, miners, smelter, press, blast furnace, assembler, chests, Quartermaster, milestones).
 
-- **Sandbox** checkbox unlocks every building immediately.
-- Run locally: `python3 -m http.server 8080` then open the app URL (ES modules).
+**Rebuild notes:** Items and chest contents use **typed grid buffers** (no string `Map` keys). Belts use **deterministic** high-index-first moves + destination claims. **Ore generation** only paints blob bounding boxes. **Terrain** (patches) is drawn to an **offscreen cache** and blitted until you build or demolish.
+
+Run locally:
+
+```bash
+python3 -m http.server 8080
+```
+
+Open the served URL (ES modules).

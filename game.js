@@ -1,5 +1,5 @@
 /**
- * Gridworks — expanded factory: multi-ore patches, processing chain, milestones.
+ * Gridworks — rebuilt core: flat buffers, deterministic belts, cached terrain draw.
  */
 
 const TAU = Math.PI * 2;
@@ -28,6 +28,9 @@ const ITEM = {
   CHIP: 8,
 };
 
+const ITEM_MAX = ITEM.CHIP;
+const CHEST_STRIDE = ITEM_MAX + 1;
+
 const PATCH = { NONE: 0, IRON: 1, COPPER: 2, COAL: 3 };
 
 const D = [
@@ -55,53 +58,12 @@ const COST = {
 const REFUND = 0.42;
 
 const MILESTONES = [
-  {
-    title: "Foundation",
-    desc: "Place 18 conveyor tiles.",
-    kind: "build_belt",
-    need: 18,
-    reward: 120,
-  },
-  {
-    title: "First heat",
-    desc: "Produce 22 iron ingots (lifetime).",
-    kind: "produced",
-    item: ITEM.IRON_INGOT,
-    need: 22,
-    reward: 200,
-  },
-  {
-    title: "Quarter link",
-    desc: "Deliver 14 copper ingots to any Quartermaster.",
-    kind: "deliver",
-    item: ITEM.COPPER_INGOT,
-    need: 14,
-    reward: 220,
-  },
-  {
-    title: "Stamped supply",
-    desc: "Deliver 12 iron plates to any Quartermaster.",
-    kind: "deliver",
-    item: ITEM.PLATE,
-    need: 12,
-    reward: 260,
-  },
-  {
-    title: "Heavy alloy",
-    desc: "Produce 8 steel ingots (lifetime).",
-    kind: "produced",
-    item: ITEM.STEEL_INGOT,
-    need: 8,
-    reward: 280,
-  },
-  {
-    title: "Silicon contract",
-    desc: "Deliver 6 circuit chips to any Quartermaster.",
-    kind: "deliver",
-    item: ITEM.CHIP,
-    need: 6,
-    reward: 320,
-  },
+  { title: "Foundation", desc: "Place 18 conveyor tiles.", kind: "build_belt", need: 18, reward: 120 },
+  { title: "First heat", desc: "Produce 22 iron ingots (lifetime).", kind: "produced", item: ITEM.IRON_INGOT, need: 22, reward: 200 },
+  { title: "Quarter link", desc: "Deliver 14 copper ingots to any Quartermaster.", kind: "deliver", item: ITEM.COPPER_INGOT, need: 14, reward: 220 },
+  { title: "Stamped supply", desc: "Deliver 12 iron plates to any Quartermaster.", kind: "deliver", item: ITEM.PLATE, need: 12, reward: 260 },
+  { title: "Heavy alloy", desc: "Produce 8 steel ingots (lifetime).", kind: "produced", item: ITEM.STEEL_INGOT, need: 8, reward: 280 },
+  { title: "Silicon contract", desc: "Deliver 6 circuit chips to any Quartermaster.", kind: "deliver", item: ITEM.CHIP, need: 6, reward: 320 },
   {
     title: "Launch window",
     desc: "Deliver 20 steel ingots to any Quartermaster.",
@@ -113,7 +75,6 @@ const MILESTONES = [
   },
 ];
 
-/** @type {{ id:string, label:string, cost:number, tile:number, hint:string, unlockAfter:number }} */
 const TOOL_DEFS = [
   { id: "belt", label: "Conveyor", cost: COST.belt, tile: TILE.BELT, hint: "Moves items along arrow.", unlockAfter: 0 },
   { id: "miner", label: "Miner", cost: COST.miner, tile: TILE.MINER, hint: "Ore patch → matching ore on belt ahead.", unlockAfter: 0 },
@@ -122,13 +83,15 @@ const TOOL_DEFS = [
   { id: "press", label: "Press", cost: COST.press, tile: TILE.PRESS, hint: "1 iron ingot → 1 plate.", unlockAfter: 2 },
   { id: "blast", label: "Blast furnace", cost: COST.blast, tile: TILE.BLAST, hint: "2 iron ingots + 1 coal → steel.", unlockAfter: 3 },
   { id: "assembler", label: "Assembler", cost: COST.assembler, tile: TILE.ASSEMBLER, hint: "1 plate + 2 copper ingots → chip.", unlockAfter: 4 },
-  { id: "quarter", label: "Quartermaster", cost: COST.quarter, tile: TILE.QUARTER, hint: "Counts deliveries for the active milestone.", unlockAfter: 0 },
+  { id: "quarter", label: "Quartermaster", cost: COST.quarter, tile: TILE.QUARTER, hint: "Deliveries for the active milestone (peach = in).", unlockAfter: 0 },
   { id: "demolish", label: "Demolish", cost: 0, tile: -1, hint: "Remove tile (partial refund).", unlockAfter: 0 },
 ];
 
+const TOOL_BY_TILE = new Map(TOOL_DEFS.filter((d) => d.tile >= 0).map((d) => [d.tile, d]));
+
 let canvas, ctx;
 let cellPx = 20;
-let money = 280;
+let money = 300;
 let paused = false;
 let showGrid = true;
 let sandboxUnlocked = false;
@@ -139,26 +102,22 @@ let kind = new Uint8Array(N);
 let rot = new Uint8Array(N);
 let orePatch = new Uint8Array(N);
 
+let itemIn = new Uint8Array(N);
 let smelterCnt = new Uint8Array(N);
 let smelterKind = new Uint8Array(N);
 let smelterProg = new Float32Array(N);
-
 let pressBuf = new Uint8Array(N);
 let pressProg = new Float32Array(N);
-
 let blastFe = new Uint8Array(N);
 let blastCoal = new Uint8Array(N);
 let blastProg = new Float32Array(N);
-
 let asmPlate = new Uint8Array(N);
 let asmCu = new Uint8Array(N);
 let asmProg = new Float32Array(N);
-
 let minerCd = new Uint16Array(N);
-/** @type {(null | Record<number, number>)[]} */
-let chestInv = new Array(N).fill(null);
 
-let items = new Map();
+let chestInv = new Uint16Array(N * CHEST_STRIDE);
+
 let activeTool = "belt";
 let placeRot = 0;
 let simAcc = 0;
@@ -167,12 +126,19 @@ const MS_PER_TICK = 105;
 
 const stats = {
   beltsPlaced: 0,
-  produced: new Map(),
+  produced: new Uint32Array(ITEM_MAX + 1),
   qmDeliverThisMs: 0,
 };
 
-const completedMs = new Array(MILESTONES.length).fill(false);
+const completedMs = new Uint8Array(MILESTONES.length);
 let gameVictory = false;
+
+let terrainCanvas = null;
+let terrainDirty = true;
+
+const moveOrder = new Uint32Array(N);
+const nextItem = new Uint8Array(N);
+const destClaim = new Uint8Array(N);
 
 function idx(x, y) {
   return y * W + x;
@@ -182,26 +148,12 @@ function inBounds(x, y) {
   return x >= 0 && x < W && y >= 0 && y < H;
 }
 
-function tileAt(x, y) {
-  return kind[idx(x, y)];
+function tileAtI(i) {
+  return kind[i];
 }
 
-function rotAt(x, y) {
-  return rot[idx(x, y)];
-}
-
-function key(x, y) {
-  return `${x},${y}`;
-}
-
-function itemAt(x, y) {
-  return items.get(key(x, y)) ?? ITEM.NONE;
-}
-
-function setItem(x, y, t) {
-  const k = key(x, y);
-  if (t === ITEM.NONE) items.delete(k);
-  else items.set(k, t);
+function rotAtI(i) {
+  return rot[i];
 }
 
 function machineInDir(r) {
@@ -214,6 +166,7 @@ function neighbor(x, y, dir) {
 
 function toast(msg) {
   const el = document.getElementById("toast");
+  if (!el) return;
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toast._t);
@@ -221,7 +174,23 @@ function toast(msg) {
 }
 
 function addProduced(it, n = 1) {
-  stats.produced.set(it, (stats.produced.get(it) ?? 0) + n);
+  if (it >= 1 && it <= ITEM_MAX) stats.produced[it] += n;
+}
+
+function chestPtr(i) {
+  return i * CHEST_STRIDE;
+}
+
+function chestAdd(i, it) {
+  const p = chestPtr(i);
+  chestInv[p + it]++;
+}
+
+function chestTotal(i) {
+  let s = 0;
+  const p = chestPtr(i);
+  for (let t = 1; t <= ITEM_MAX; t++) s += chestInv[p + t];
+  return s;
 }
 
 function patchToOreItem(p) {
@@ -243,18 +212,24 @@ function genOre() {
       const cx = 4 + ((Math.random() * (W - 8)) | 0);
       const cy = 4 + ((Math.random() * (H - 8)) | 0);
       const r = 1.6 + Math.random() * layer.r;
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
+      const r2 = r * r;
+      const x0 = Math.max(0, Math.floor(cx - r - 1));
+      const y0 = Math.max(0, Math.floor(cy - r - 1));
+      const x1 = Math.min(W - 1, Math.ceil(cx + r + 1));
+      const y1 = Math.min(H - 1, Math.ceil(cy + r + 1));
+      for (let y = y0; y <= y1; y++) {
+        const dy = y - cy;
+        for (let x = x0; x <= x1; x++) {
           const dx = x - cx;
-          const dy = y - cy;
-          if (dx * dx + dy * dy <= r * r) orePatch[idx(x, y)] = layer.t;
+          if (dx * dx + dy * dy <= r2) orePatch[idx(x, y)] = layer.t;
         }
       }
     }
   }
 }
 
-function clearMachineArrays() {
+function clearMachineState() {
+  itemIn.fill(0);
   smelterCnt.fill(0);
   smelterKind.fill(0);
   smelterProg.fill(0);
@@ -267,20 +242,21 @@ function clearMachineArrays() {
   asmCu.fill(0);
   asmProg.fill(0);
   minerCd.fill(0);
-  for (let i = 0; i < N; i++) chestInv[i] = null;
+  chestInv.fill(0);
 }
 
 function clearFloor() {
   kind.fill(TILE.EMPTY);
   rot.fill(0);
-  items.clear();
-  clearMachineArrays();
+  clearMachineState();
   stats.beltsPlaced = 0;
-  stats.produced = new Map();
+  stats.produced.fill(0);
   stats.qmDeliverThisMs = 0;
-  completedMs.fill(false);
+  completedMs.fill(0);
   gameVictory = false;
-  document.getElementById("victory").classList.add("hidden");
+  terrainDirty = true;
+  const vic = document.getElementById("victory");
+  if (vic) vic.classList.add("hidden");
 }
 
 function initGame() {
@@ -297,7 +273,7 @@ function currentMilestoneIndex() {
 
 function milestonesDoneCount() {
   let n = 0;
-  for (let i = 0; i < completedMs.length; i++) if (completedMs[i]) n++;
+  for (let i = 0; i < completedMs.length; i++) n += completedMs[i];
   return n;
 }
 
@@ -311,30 +287,31 @@ function milestoneProgressPair() {
   if (mi < 0) return [1, 1];
   const m = MILESTONES[mi];
   if (m.kind === "build_belt") return [Math.min(stats.beltsPlaced, m.need), m.need];
-  if (m.kind === "produced") return [Math.min(stats.produced.get(m.item) ?? 0, m.need), m.need];
+  if (m.kind === "produced") return [Math.min(stats.produced[m.item] ?? 0, m.need), m.need];
   if (m.kind === "deliver") return [Math.min(stats.qmDeliverThisMs, m.need), m.need];
   return [0, 1];
 }
 
 function tryCompleteMilestones() {
   let guard = 0;
-  while (guard++ < 8) {
+  while (guard++ < 12) {
     const mi = currentMilestoneIndex();
     if (mi < 0) break;
     const m = MILESTONES[mi];
     let ok = false;
     if (m.kind === "build_belt") ok = stats.beltsPlaced >= m.need;
-    else if (m.kind === "produced") ok = (stats.produced.get(m.item) ?? 0) >= m.need;
+    else if (m.kind === "produced") ok = stats.produced[m.item] >= m.need;
     else if (m.kind === "deliver") ok = stats.qmDeliverThisMs >= m.need;
     if (!ok) break;
-    completedMs[mi] = true;
+    completedMs[mi] = 1;
     money += m.reward;
     score += m.reward + 40;
     stats.qmDeliverThisMs = 0;
     toast(`Milestone: ${m.title} (+$${m.reward})`);
     if (m.victory) {
       gameVictory = true;
-      document.getElementById("victory").classList.remove("hidden");
+      const vic = document.getElementById("victory");
+      if (vic) vic.classList.remove("hidden");
     }
     refreshToolButtons();
   }
@@ -342,14 +319,15 @@ function tryCompleteMilestones() {
 }
 
 function refreshMilestoneUI() {
-  const mi = currentMilestoneIndex();
   const title = document.getElementById("ms-title");
   const desc = document.getElementById("ms-desc");
   const bar = document.getElementById("ms-bar");
   const prog = document.getElementById("ms-prog");
+  if (!title) return;
+  const mi = currentMilestoneIndex();
   if (mi < 0) {
     title.textContent = "All milestones complete";
-    desc.textContent = "Sandbox on — keep building, or start a new map.";
+    desc.textContent = "Enable sandbox or clear floor for a new run.";
     bar.style.width = "100%";
     prog.textContent = "Done";
     return;
@@ -358,15 +336,13 @@ function refreshMilestoneUI() {
   title.textContent = m.title;
   desc.textContent = m.desc;
   const [a, b] = milestoneProgressPair();
-  bar.style.width = `${(a / b) * 100}%`;
+  bar.style.width = `${(a / Math.max(1, b)) * 100}%`;
   prog.textContent = `${a} / ${b}`;
 }
 
 function refundForTile(t) {
-  for (const def of TOOL_DEFS) {
-    if (def.tile === t) return Math.floor(def.cost * REFUND);
-  }
-  return 0;
+  const def = TOOL_BY_TILE.get(t);
+  return def ? Math.floor(def.cost * REFUND) : 0;
 }
 
 function demolish(x, y) {
@@ -375,7 +351,7 @@ function demolish(x, y) {
   if (t === TILE.EMPTY) return;
   if (t === TILE.BELT) stats.beltsPlaced = Math.max(0, stats.beltsPlaced - 1);
   money += refundForTile(t);
-  setItem(x, y, ITEM.NONE);
+  itemIn[i] = 0;
   kind[i] = TILE.EMPTY;
   rot[i] = 0;
   smelterCnt[i] = 0;
@@ -390,17 +366,20 @@ function demolish(x, y) {
   asmCu[i] = 0;
   asmProg[i] = 0;
   minerCd[i] = 0;
-  chestInv[i] = null;
+  chestInv.fill(0, chestPtr(i), CHEST_STRIDE);
+  terrainDirty = true;
 }
 
 function canPlace(t, x, y) {
   if (!inBounds(x, y)) return false;
-  if (tileAt(x, y) !== TILE.EMPTY) return false;
-  if (t === TILE.MINER && orePatch[idx(x, y)] === PATCH.NONE) return false;
+  const i = idx(x, y);
+  if (kind[i] !== TILE.EMPTY) return false;
+  if (t === TILE.MINER && orePatch[i] === PATCH.NONE) return false;
   return true;
 }
 
 function tryBuy(cost) {
+  if (cost <= 0) return true;
   if (money < cost) {
     toast("Not enough credits.");
     return false;
@@ -409,30 +388,22 @@ function tryBuy(cost) {
   return true;
 }
 
-function makeEmptyInv() {
-  /** @type Record<number, number> */
-  const o = {};
-  for (let it = ITEM.IRON_ORE; it <= ITEM.CHIP; it++) o[it] = 0;
-  return o;
-}
-
 function placeTile(t, x, y) {
   if (!canPlace(t, x, y)) {
-    if (t === TILE.MINER) toast("Miners need an ore patch.");
-    else toast("Blocked.");
+    toast(t === TILE.MINER ? "Miners need an ore patch." : "Blocked.");
     return;
   }
-  const def = TOOL_DEFS.find((d) => d.tile === t);
+  const def = TOOL_BY_TILE.get(t);
   if (!def || !toolUnlocked(def)) {
-    toast("Locked — complete earlier milestones or enable sandbox.");
+    toast("Locked — milestones or sandbox.");
     return;
   }
-  if (def.cost > 0 && !tryBuy(def.cost)) return;
+  if (!tryBuy(def.cost)) return;
   const i = idx(x, y);
   kind[i] = t;
   rot[i] = placeRot & 3;
-  if (t === TILE.CHEST) chestInv[i] = makeEmptyInv();
   if (t === TILE.BELT) stats.beltsPlaced++;
+  terrainDirty = true;
 }
 
 function handleBuildClick(x, y) {
@@ -445,19 +416,16 @@ function handleBuildClick(x, y) {
   placeTile(def.tile, x, y);
 }
 
-function tryChest(x, y, it) {
-  const i = idx(x, y);
-  if (kind[i] !== TILE.CHEST || !chestInv[i]) return false;
-  chestInv[i][it] = (chestInv[i][it] ?? 0) + 1;
-  return true;
-}
-
-function tryQuarter(x, y, it, sx, sy) {
-  const i = idx(x, y);
-  if (kind[i] !== TILE.QUARTER) return false;
+function tryQuarter(i, it, fromI) {
+  if (tileAtI(i) !== TILE.QUARTER) return false;
   const inD = machineInDir(rot[i]);
-  const src = neighbor(x, y, inD);
-  if (src.x !== sx || src.y !== sy) return false;
+  const mx = i % W;
+  const my = (i / W) | 0;
+  const nx = mx + D[inD].x;
+  const ny = my + D[inD].y;
+  const fromX = fromI % W;
+  const fromY = (fromI / W) | 0;
+  if (nx !== fromX || ny !== fromY) return false;
   const mi = currentMilestoneIndex();
   if (mi < 0) return false;
   const m = MILESTONES[mi];
@@ -481,8 +449,7 @@ function trySmelterOre(si, type) {
 }
 
 function tryPressIn(pi, type) {
-  if (type !== ITEM.IRON_INGOT) return false;
-  if (pressBuf[pi] >= 6) return false;
+  if (type !== ITEM.IRON_INGOT || pressBuf[pi] >= 6) return false;
   pressBuf[pi]++;
   return true;
 }
@@ -515,118 +482,119 @@ function tryAsmIn(ai, type) {
   return false;
 }
 
-function moveItems() {
-  const entries = [...items.entries()].map(([k, t]) => {
-    const [sx, sy] = k.split(",").map(Number);
-    return { x: sx, y: sy, type: t };
-  });
-  entries.sort(() => Math.random() - 0.5);
-  const want = new Map();
-  const stay = (x0, y0, t0) => want.set(key(x0, y0), t0);
+function buildMoveOrder() {
+  let c = 0;
+  for (let i = 0; i < N; i++) {
+    if (itemIn[i] !== 0 && kind[i] === TILE.BELT) moveOrder[c++] = i;
+  }
+  const sub = moveOrder.subarray(0, c);
+  sub.sort((a, b) => b - a);
+  return c;
+}
 
-  for (const e of entries) {
-    const { x, y, type } = e;
-    const dir = tileAt(x, y) === TILE.BELT ? rotAt(x, y) : -1;
-    if (dir < 0) {
-      stay(x, y, type);
-      continue;
-    }
-    const nx = x + D[dir].x;
-    const ny = y + D[dir].y;
+function tryConsumeAt(fromI, it, nx, ny) {
+  const ni = idx(nx, ny);
+  const nt = tileAtI(ni);
+  const fx = fromI % W;
+  const fy = (fromI / W) | 0;
+
+  if (nt === TILE.SMELTER) {
+    const src = neighbor(nx, ny, machineInDir(rot[ni]));
+    if (src.x === fx && src.y === fy && trySmelterOre(ni, it)) return true;
+  } else if (nt === TILE.PRESS) {
+    const src = neighbor(nx, ny, machineInDir(rot[ni]));
+    if (src.x === fx && src.y === fy && tryPressIn(ni, it)) return true;
+  } else if (nt === TILE.BLAST) {
+    const src = neighbor(nx, ny, machineInDir(rot[ni]));
+    if (src.x === fx && src.y === fy && tryBlastIn(ni, it)) return true;
+  } else if (nt === TILE.ASSEMBLER) {
+    const src = neighbor(nx, ny, machineInDir(rot[ni]));
+    if (src.x === fx && src.y === fy && tryAsmIn(ni, it)) return true;
+  } else if (nt === TILE.CHEST) {
+    chestAdd(ni, it);
+    return true;
+  } else if (nt === TILE.QUARTER) {
+    if (tryQuarter(ni, it, fromI)) return true;
+  }
+  return false;
+}
+
+function moveItems() {
+  const nMove = buildMoveOrder();
+  nextItem.fill(0);
+  destClaim.fill(0);
+
+  for (let i = 0; i < N; i++) {
+    const it = itemIn[i];
+    if (it !== 0 && kind[i] !== TILE.BELT) nextItem[i] = it;
+  }
+
+  for (let k = 0; k < nMove; k++) {
+    const i = moveOrder[k];
+    const it = itemIn[i];
+    if (it === 0) continue;
+
+    const r = rotAtI(i);
+    const x = i % W;
+    const y = (i / W) | 0;
+    const nx = x + D[r].x;
+    const ny = y + D[r].y;
     if (!inBounds(nx, ny)) {
-      stay(x, y, type);
+      nextItem[i] = it;
       continue;
     }
-    const nt = tileAt(nx, ny);
-    const tk = key(nx, ny);
+    const ni = idx(nx, ny);
+    const nt = tileAtI(ni);
 
     if (nt === TILE.BELT) {
-      if (want.has(tk)) {
-        stay(x, y, type);
+      if (destClaim[ni]) {
+        nextItem[i] = it;
         continue;
       }
-      want.set(tk, type);
+      destClaim[ni] = 1;
+      nextItem[ni] = it;
       continue;
     }
 
-    if (nt === TILE.SMELTER) {
-      const si = idx(nx, ny);
-      const src = neighbor(nx, ny, machineInDir(rot[si]));
-      if (src.x === x && src.y === y && trySmelterOre(si, type)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    if (nt === TILE.PRESS) {
-      const pi = idx(nx, ny);
-      const src = neighbor(nx, ny, machineInDir(rot[pi]));
-      if (src.x === x && src.y === y && tryPressIn(pi, type)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    if (nt === TILE.BLAST) {
-      const bi = idx(nx, ny);
-      const src = neighbor(nx, ny, machineInDir(rot[bi]));
-      if (src.x === x && src.y === y && tryBlastIn(bi, type)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    if (nt === TILE.ASSEMBLER) {
-      const ai = idx(nx, ny);
-      const src = neighbor(nx, ny, machineInDir(rot[ai]));
-      if (src.x === x && src.y === y && tryAsmIn(ai, type)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    if (nt === TILE.CHEST) {
-      if (tryChest(nx, ny, type)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    if (nt === TILE.QUARTER) {
-      if (tryQuarter(nx, ny, type, x, y)) continue;
-      stay(x, y, type);
-      continue;
-    }
-
-    stay(x, y, type);
+    if (tryConsumeAt(i, it, nx, ny)) continue;
+    nextItem[i] = it;
   }
 
-  items.clear();
-  for (const [k, t] of want) {
-    if (t !== ITEM.NONE) items.set(k, t);
-  }
+  itemIn.set(nextItem);
 }
 
 function outputIfFree(ox, oy, it) {
-  if (!inBounds(ox, oy) || itemAt(ox, oy) !== ITEM.NONE) return false;
-  const ot = tileAt(ox, oy);
+  if (!inBounds(ox, oy)) return false;
+  const oi = idx(ox, oy);
+  if (itemIn[oi] !== 0) return false;
+  const ot = tileAtI(oi);
   if (ot === TILE.BELT) {
-    setItem(ox, oy, it);
+    itemIn[oi] = it;
     addProduced(it, 1);
     return true;
   }
-  if (ot === TILE.CHEST && chestInv[idx(ox, oy)]) {
-    chestInv[idx(ox, oy)][it]++;
+  if (ot === TILE.CHEST) {
+    chestAdd(oi, it);
     addProduced(it, 1);
     return true;
   }
   return false;
 }
 
-function tickSmelters() {
-  const rate = 0.052;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = idx(x, y);
-      if (kind[i] !== TILE.SMELTER) continue;
+function tickMachines() {
+  const rs = 0.052;
+  const rp = 0.07;
+  const rb = 0.04;
+  const ra = 0.045;
+
+  for (let i = 0; i < N; i++) {
+    const t = kind[i];
+    if (t === TILE.SMELTER) {
+      const x = i % W;
+      const y = (i / W) | 0;
       const out = neighbor(x, y, rot[i]);
       if (smelterCnt[i] >= 2) {
-        smelterProg[i] += rate;
+        smelterProg[i] += rs;
         if (smelterProg[i] >= 1) {
           const ing = smelterKind[i] === ITEM.IRON_ORE ? ITEM.IRON_INGOT : ITEM.COPPER_INGOT;
           if (outputIfFree(out.x, out.y, ing)) {
@@ -636,19 +604,12 @@ function tickSmelters() {
           } else smelterProg[i] = 0.97;
         }
       } else smelterProg[i] *= 0.9;
-    }
-  }
-}
-
-function tickPress() {
-  const rate = 0.07;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = idx(x, y);
-      if (kind[i] !== TILE.PRESS) continue;
+    } else if (t === TILE.PRESS) {
+      const x = i % W;
+      const y = (i / W) | 0;
       const out = neighbor(x, y, rot[i]);
       if (pressBuf[i] >= 1) {
-        pressProg[i] += rate;
+        pressProg[i] += rp;
         if (pressProg[i] >= 1) {
           if (outputIfFree(out.x, out.y, ITEM.PLATE)) {
             pressBuf[i]--;
@@ -656,19 +617,12 @@ function tickPress() {
           } else pressProg[i] = 0.96;
         }
       } else pressProg[i] *= 0.9;
-    }
-  }
-}
-
-function tickBlast() {
-  const rate = 0.04;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = idx(x, y);
-      if (kind[i] !== TILE.BLAST) continue;
+    } else if (t === TILE.BLAST) {
+      const x = i % W;
+      const y = (i / W) | 0;
       const out = neighbor(x, y, rot[i]);
       if (blastFe[i] >= 2 && blastCoal[i] >= 1) {
-        blastProg[i] += rate;
+        blastProg[i] += rb;
         if (blastProg[i] >= 1) {
           if (outputIfFree(out.x, out.y, ITEM.STEEL_INGOT)) {
             blastFe[i] -= 2;
@@ -677,19 +631,12 @@ function tickBlast() {
           } else blastProg[i] = 0.96;
         }
       } else blastProg[i] *= 0.9;
-    }
-  }
-}
-
-function tickAssembler() {
-  const rate = 0.045;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = idx(x, y);
-      if (kind[i] !== TILE.ASSEMBLER) continue;
+    } else if (t === TILE.ASSEMBLER) {
+      const x = i % W;
+      const y = (i / W) | 0;
       const out = neighbor(x, y, rot[i]);
       if (asmPlate[i] >= 1 && asmCu[i] >= 2) {
-        asmProg[i] += rate;
+        asmProg[i] += ra;
         if (asmProg[i] >= 1) {
           if (outputIfFree(out.x, out.y, ITEM.CHIP)) {
             asmPlate[i]--;
@@ -698,26 +645,18 @@ function tickAssembler() {
           } else asmProg[i] = 0.96;
         }
       } else asmProg[i] *= 0.9;
-    }
-  }
-}
-
-function tickMiners() {
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = idx(x, y);
-      if (kind[i] !== TILE.MINER) continue;
-      const r = rot[i];
-      const out = neighbor(x, y, r);
+    } else if (t === TILE.MINER) {
+      const x = i % W;
+      const y = (i / W) | 0;
+      const out = neighbor(x, y, rot[i]);
       if (!inBounds(out.x, out.y)) continue;
-      if (tileAt(out.x, out.y) !== TILE.BELT) continue;
-      if (itemAt(out.x, out.y) !== ITEM.NONE) continue;
+      const oi = idx(out.x, out.y);
+      if (kind[oi] !== TILE.BELT || itemIn[oi] !== 0) continue;
       minerCd[i]++;
       if (minerCd[i] < 52) continue;
       minerCd[i] = 0;
       const ore = patchToOreItem(orePatch[i]);
-      if (ore === ITEM.NONE) continue;
-      setItem(out.x, out.y, ore);
+      if (ore !== ITEM.NONE) itemIn[oi] = ore;
     }
   }
 }
@@ -725,13 +664,10 @@ function tickMiners() {
 function tick() {
   if (paused) return;
   moveItems();
-  tickSmelters();
-  tickPress();
-  tickBlast();
-  tickAssembler();
-  tickMiners();
+  tickMachines();
   tryCompleteMilestones();
-  beltLoad = items.size;
+  beltLoad = 0;
+  for (let i = 0; i < N; i++) if (itemIn[i]) beltLoad++;
 }
 
 function itemColor(t) {
@@ -758,9 +694,8 @@ function itemColor(t) {
 }
 
 function drawItem(px, py, cw, ch, t) {
-  const c = itemColor(t);
-  ctx.fillStyle = c;
-  if (t === ITEM.IRON_ORE || t === ITEM.COPPER_ORE || t === ITEM.COAL_ORE) {
+  ctx.fillStyle = itemColor(t);
+  if (t <= ITEM.COAL_ORE) {
     ctx.beginPath();
     ctx.arc(px, py, cw * 0.2, 0, TAU);
     ctx.fill();
@@ -783,13 +718,50 @@ function patchColor(p) {
   return "#11161d";
 }
 
-function draw() {
+function ensureTerrainCache() {
+  if (!terrainDirty && terrainCanvas) return;
+  if (!terrainCanvas) terrainCanvas = document.createElement("canvas");
+  terrainCanvas.width = W * cellPx + 2;
+  terrainCanvas.height = H * cellPx + 2;
+  const tctx = terrainCanvas.getContext("2d");
   const pad = 1;
   const cw = cellPx;
   const ch = cellPx;
-  ctx.save();
-  ctx.fillStyle = "#0a0d12";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  tctx.fillStyle = "#0a0d12";
+  tctx.fillRect(0, 0, terrainCanvas.width, terrainCanvas.height);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = pad + x * cw;
+      const py = pad + y * ch;
+      const p = orePatch[idx(x, y)];
+      tctx.fillStyle = patchColor(p);
+      tctx.fillRect(px, py, cw - 1, ch - 1);
+    }
+  }
+  terrainDirty = false;
+}
+
+function drawMachineIO(px, py, cw, ch, r, accent) {
+  const cx = px + cw * 0.5;
+  const cy = py + ch * 0.5;
+  ctx.strokeStyle = accent;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + D[r].x * 8, cy + D[r].y * 8);
+  ctx.stroke();
+  const id = machineInDir(r);
+  ctx.fillStyle = "#fde68a";
+  ctx.fillRect(px + cw * 0.5 + D[id].x * 6 - 2, py + ch * 0.5 + D[id].y * 6 - 2, 4, 4);
+}
+
+function draw() {
+  ensureTerrainCache();
+  const pad = 1;
+  const cw = cellPx;
+  const ch = cellPx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(terrainCanvas, 0, 0);
 
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
@@ -797,10 +769,14 @@ function draw() {
       const py = pad + y * ch;
       const i = idx(x, y);
       const t = kind[i];
-      const p = orePatch[i];
-
-      ctx.fillStyle = patchColor(p);
-      ctx.fillRect(px, py, cw - 1, ch - 1);
+      if (t === TILE.EMPTY) {
+        if (showGrid) {
+          ctx.strokeStyle = "rgba(48, 54, 61, 0.28)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px - 0.5, py - 0.5, cw, ch);
+        }
+        continue;
+      }
 
       if (t === TILE.BELT) {
         ctx.fillStyle = "#1e293b";
@@ -821,6 +797,7 @@ function draw() {
       } else if (t === TILE.MINER) {
         ctx.fillStyle = "#334155";
         ctx.fillRect(px + 2, py + 2, cw - 5, ch - 5);
+        const p = orePatch[i];
         ctx.fillStyle = p === PATCH.COPPER ? "#22d3ee" : p === PATCH.COAL ? "#94a3b8" : "#f87171";
         ctx.beginPath();
         ctx.arc(px + cw * 0.5, py + ch * 0.5, 5, 0, TAU);
@@ -852,21 +829,10 @@ function draw() {
       } else if (t === TILE.CHEST) {
         ctx.fillStyle = "#172554";
         ctx.fillRect(px + 2, py + 2, cw - 5, ch - 5);
-        const inv = chestInv[i];
-        if (inv) {
-          const tot =
-            (inv[ITEM.IRON_ORE] ?? 0) +
-            (inv[ITEM.COPPER_ORE] ?? 0) +
-            (inv[ITEM.IRON_INGOT] ?? 0) +
-            (inv[ITEM.COPPER_INGOT] ?? 0) +
-            (inv[ITEM.STEEL_INGOT] ?? 0) +
-            (inv[ITEM.PLATE] ?? 0) +
-            (inv[ITEM.CHIP] ?? 0);
-          ctx.fillStyle = "#94a3b8";
-          ctx.font = `${Math.max(6, cw * 0.24)}px IBM Plex Mono, monospace`;
-          ctx.textAlign = "center";
-          ctx.fillText(String(tot), px + cw * 0.5, py + ch * 0.55);
-        }
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = `${Math.max(6, cw * 0.24)}px IBM Plex Mono, monospace`;
+        ctx.textAlign = "center";
+        ctx.fillText(String(chestTotal(i)), px + cw * 0.5, py + ch * 0.55);
       } else if (t === TILE.PRESS) {
         ctx.fillStyle = "#3f3f46";
         ctx.fillRect(px + 2, py + 2, cw - 5, ch - 5);
@@ -911,28 +877,16 @@ function draw() {
     }
   }
 
-  for (const [k, t] of items) {
-    const [sx, sy] = k.split(",").map(Number);
-    const px = pad + sx * cw + cw * 0.5;
-    const py = pad + sy * ch + ch * 0.5;
-    drawItem(px, py, cw, ch, t);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = idx(x, y);
+      const it = itemIn[i];
+      if (it === 0) continue;
+      const px = pad + x * cw + cw * 0.5;
+      const py = pad + y * ch + ch * 0.5;
+      drawItem(px, py, cw, ch, it);
+    }
   }
-
-  ctx.restore();
-}
-
-function drawMachineIO(px, py, cw, ch, r, accent) {
-  const cx = px + cw * 0.5;
-  const cy = py + ch * 0.5;
-  ctx.strokeStyle = accent;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.lineTo(cx + D[r].x * 8, cy + D[r].y * 8);
-  ctx.stroke();
-  const id = machineInDir(r);
-  ctx.fillStyle = "#fde68a";
-  ctx.fillRect(px + cw * 0.5 + D[id].x * 6 - 2, py + ch * 0.5 + D[id].y * 6 - 2, 4, 4);
 }
 
 function resize() {
@@ -945,6 +899,7 @@ function resize() {
   cellPx = Math.max(14, Math.floor(18 * scale));
   canvas.width = W * cellPx + 2;
   canvas.height = H * cellPx + 2;
+  terrainDirty = true;
 }
 
 function screenToCell(clientX, clientY) {
@@ -964,7 +919,6 @@ function refreshToolButtons() {
     if (!def) return;
     const ok = toolUnlocked(def);
     b.classList.toggle("locked", !ok && !sandboxUnlocked);
-    b.disabled = false;
   });
 }
 
@@ -972,17 +926,16 @@ function bindUI() {
   const tb = document.getElementById("tool-buttons");
   tb.innerHTML = "";
   TOOL_DEFS.forEach((def, ix) => {
-    const hot = def.id === "demolish" ? "0" : String(ix + 1);
     const b = document.createElement("button");
     b.type = "button";
     b.className = "tool-btn" + (activeTool === def.id ? " active" : "");
     b.dataset.tool = def.id;
-    const lock = !toolUnlocked(def);
-    if (lock) b.classList.add("locked");
-    b.innerHTML = `<span><span class="hotkey">${hot}</span>${def.label}</span>${def.cost ? `<span class="cost">$${def.cost}</span>` : ""}`;
+    if (!toolUnlocked(def)) b.classList.add("locked");
+    const hk = def.id === "demolish" ? "0" : ix < 8 ? String(ix + 1) : "—";
+    b.innerHTML = `<span><span class="hotkey">${hk}</span>${def.label}</span>${def.cost ? `<span class="cost">$${def.cost}</span>` : ""}`;
     b.addEventListener("click", () => {
       if (!toolUnlocked(def) && !sandboxUnlocked) {
-        toast("Complete earlier milestones — or enable sandbox.");
+        toast("Complete milestones — or sandbox.");
         return;
       }
       activeTool = def.id;
@@ -1000,7 +953,7 @@ function bindUI() {
   document.getElementById("sandbox").addEventListener("change", (e) => {
     sandboxUnlocked = e.target.checked;
     refreshToolButtons();
-    toast(sandboxUnlocked ? "Sandbox: all buildings unlocked." : "Progression gates on.");
+    toast(sandboxUnlocked ? "Sandbox: all buildings unlocked." : "Progression on.");
   });
 
   document.getElementById("btn-pause").addEventListener("click", (e) => {
@@ -1009,7 +962,7 @@ function bindUI() {
   });
 
   document.getElementById("btn-clear").addEventListener("click", () => {
-    if (!confirm("Clear the entire floor and reset milestones?")) return;
+    if (!confirm("Clear floor and reset milestones?")) return;
     clearFloor();
     money = 300;
     score = 0;
@@ -1023,7 +976,7 @@ function bindUI() {
     refreshMilestoneUI();
     refreshToolButtons();
     document.getElementById("victory").classList.add("hidden");
-    toast("New ore map.");
+    toast("New map.");
   });
 
   window.addEventListener("keydown", (e) => {
@@ -1033,7 +986,7 @@ function bindUI() {
       toast(`Output → ${["N", "E", "S", "W"][placeRot]}`);
     } else if (k === "0") {
       selectToolById("demolish");
-    } else if (k >= "1" && k <= "9") {
+    } else if (k >= "1" && k <= "8") {
       const ix = +k - 1;
       if (TOOL_DEFS[ix]) selectToolById(TOOL_DEFS[ix].id);
     }
@@ -1043,7 +996,7 @@ function bindUI() {
     const def = TOOL_DEFS.find((d) => d.id === id);
     if (!def) return;
     if (!toolUnlocked(def) && !sandboxUnlocked) {
-      toast("Locked — milestone or sandbox.");
+      toast("Locked.");
       return;
     }
     activeTool = id;
@@ -1058,7 +1011,7 @@ function bindUI() {
     document.getElementById("stat-score").textContent = String(score);
     document.getElementById("stat-belt").textContent = String(beltLoad);
     refreshMilestoneUI();
-  }, 200);
+  }, 350);
 }
 
 function loop(ts) {
