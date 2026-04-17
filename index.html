@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Ant Realm — Colony Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="hud">
+    <header class="brand">
+      <h1>Ant Realm</h1>
+      <p class="tagline">Stigmergy · Pheromones · Emergent trails</p>
+    </header>
+
+    <section class="stats" aria-live="polite">
+      <div class="stat"><span class="label">Colony</span><span id="stat-ants">0</span></div>
+      <div class="stat"><span class="label">Stored food</span><span id="stat-food">0</span></div>
+      <div class="stat"><span class="label">Gathered (total)</span><span id="stat-gathered">0</span></div>
+      <div class="stat"><span class="label">Trail strength</span><span id="stat-trail">—</span></div>
+    </section>
+
+    <section class="controls">
+      <h2>Simulation</h2>
+      <label class="row">
+        <span>Speed</span>
+        <input type="range" id="speed" min="0" max="4" value="2" step="1" />
+      </label>
+      <label class="row">
+        <span>Evaporation</span>
+        <input type="range" id="evap" min="1" max="100" value="35" />
+      </label>
+      <label class="row">
+        <span>Diffusion</span>
+        <input type="range" id="diffuse" min="0" max="100" value="40" />
+      </label>
+      <label class="row">
+        <span>Sensor noise</span>
+        <input type="range" id="noise" min="0" max="100" value="20" />
+      </label>
+      <div class="btn-row">
+        <button type="button" id="btn-pause">Pause</button>
+        <button type="button" id="btn-rain">Rain storm</button>
+        <button type="button" id="btn-reset">Reset world</button>
+      </div>
+    </section>
+
+    <section class="controls">
+      <h2>Brush</h2>
+      <div class="brush-modes" role="group" aria-label="Brush mode">
+        <button type="button" class="brush active" data-brush="none">View</button>
+        <button type="button" class="brush" data-brush="food">Food</button>
+        <button type="button" class="brush" data-brush="rock">Rock</button>
+        <button type="button" class="brush" data-brush="erase">Erase</button>
+      </div>
+      <label class="row">
+        <span>Brush size</span>
+        <input type="range" id="brush-size" min="8" max="120" value="36" />
+      </label>
+    </section>
+
+    <section class="controls help">
+      <h2>Controls</h2>
+      <ul>
+        <li>Drag to pan · Wheel to zoom</li>
+        <li>Brush paints on the world (food / rocks)</li>
+        <li>Returning ants lay <em>food</em> trails; the nest emits <em>home</em> scent</li>
+      </ul>
+    </section>
+  </div>
+
+  <canvas id="c" aria-label="Ant simulation world"></canvas>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="game.js"></script>
+</body>
+</html>
