@@ -1,6 +1,6 @@
 # Ant Realm
 
-Browser ant-colony simulator: pheromone trails (stigmergy), nest economy, rocks, painting tools, pan and zoom.
+Browser ant survival sim: **rival colonies**, **predators** (chitin drops), **pheromone trails**, surface painting, and an **enterable anthill** where you dig tunnels and build granaries / nurseries (food cap + cheaper hatches).
 
 ## Play locally
 

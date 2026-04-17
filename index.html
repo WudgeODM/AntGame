@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Ant Realm — Colony Simulator</title>
+  <title>Ant Realm — Survival & Anthill</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet" />
@@ -13,14 +13,24 @@
   <div id="hud">
     <header class="brand">
       <h1>Ant Realm</h1>
-      <p class="tagline">Stigmergy · Pheromones · Emergent trails</p>
+      <p class="tagline">Survival · Rivals · Bugs · Anthill base</p>
     </header>
 
     <section class="stats" aria-live="polite">
-      <div class="stat"><span class="label">Colony</span><span id="stat-ants">0</span></div>
-      <div class="stat"><span class="label">Stored food</span><span id="stat-food">0</span></div>
-      <div class="stat"><span class="label">Gathered (total)</span><span id="stat-gathered">0</span></div>
-      <div class="stat"><span class="label">Trail strength</span><span id="stat-trail">—</span></div>
+      <div class="stat"><span class="label">Your workers</span><span id="stat-ants">0</span></div>
+      <div class="stat"><span class="label">Food stores</span><span id="stat-food">0</span></div>
+      <div class="stat"><span class="label">Chitin</span><span id="stat-chitin">0</span></div>
+      <div class="stat"><span class="label">Rival ants</span><span id="stat-rivals">0</span></div>
+      <div class="stat"><span class="label">Predators</span><span id="stat-bugs">0</span></div>
+      <div class="stat"><span class="label">Trail (you)</span><span id="stat-trail">—</span></div>
+    </section>
+
+    <section class="controls">
+      <h2>Colony</h2>
+      <div class="btn-row">
+        <button type="button" id="btn-hill" class="primary">Enter anthill</button>
+      </div>
+      <p class="hint">Build chambers underground. Food cap &amp; hatch bonuses come from rooms.</p>
     </section>
 
     <section class="controls">
@@ -49,7 +59,7 @@
     </section>
 
     <section class="controls">
-      <h2>Brush</h2>
+      <h2>Brush (surface)</h2>
       <div class="brush-modes" role="group" aria-label="Brush mode">
         <button type="button" class="brush active" data-brush="none">View</button>
         <button type="button" class="brush" data-brush="food">Food</button>
@@ -65,14 +75,42 @@
     <section class="controls help">
       <h2>Controls</h2>
       <ul>
-        <li>Drag to pan · Wheel to zoom</li>
-        <li>Brush paints on the world (food / rocks)</li>
-        <li>Returning ants lay <em>food</em> trails; the nest emits <em>home</em> scent</li>
+        <li>Pan / zoom on the surface; rivals (crimson) contest the same food patches</li>
+        <li>Spiders hunt ants; swarms wear them down — drops <em>chitin</em> for digging &amp; rooms</li>
+        <li><em>Enter anthill</em> to dig tunnels and place granary / nursery tiles</li>
       </ul>
     </section>
   </div>
 
   <canvas id="c" aria-label="Ant simulation world"></canvas>
+
+  <div id="hill-screen" class="hidden" aria-hidden="true">
+    <div class="hill-panel">
+      <header class="hill-head">
+        <div>
+          <h2>Anthill interior</h2>
+          <p class="hill-res" id="hill-res">Food <span id="hill-food">0</span> / <span id="hill-cap">200</span> · Chitin <span id="hill-chitin">0</span></p>
+        </div>
+        <button type="button" id="hill-exit" class="primary">Surface</button>
+      </header>
+      <p class="hill-hint" id="hill-hint">Pick a tool, then tap a valid tile.</p>
+      <div id="hill-tools" class="hill-tools" role="toolbar" aria-label="Build tools">
+        <button type="button" class="tool active" data-tool="dig">Dig <span class="cost">8 food · 5 chitin</span></button>
+        <button type="button" class="tool" data-tool="granary">Granary <span class="cost">30 food · 12 chitin</span></button>
+        <button type="button" class="tool" data-tool="nursery">Nursery <span class="cost">45 food · 18 chitin</span></button>
+      </div>
+      <div id="hill-board" class="hill-board" role="grid" aria-label="Chamber grid"></div>
+    </div>
+  </div>
+
+  <div id="gameover" class="hidden" role="dialog" aria-modal="true" aria-labelledby="go-title">
+    <div class="go-box">
+      <h2 id="go-title">Colony lost</h2>
+      <p id="go-body">Every worker is gone and reserves are empty.</p>
+      <button type="button" id="go-restart">Restart</button>
+    </div>
+  </div>
+
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script type="module" src="game.js"></script>
